@@ -1,0 +1,60 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S", ".",
+                "-B", "build",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=ON",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "build",
+                "--config", "Debug"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["CMake: Configure"]
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir", "build",
+                "--output-on-failure",
+                "-C", "Debug"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "dependsOn": ["CMake: Build"]
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "windows": {
+                "command": "Remove-Item",
+                "args": ["-Recurse", "-Force", "build"]
+            },
+            "linux": {
+                "command": "rm",
+                "args": ["-rf", "build"]
+            },
+            "problemMatcher": []
+        }
+    ]
+}
