@@ -12,6 +12,8 @@ void Logger::init(const std::string& name, spdlog::level::level_enum level) {
         return;
     }
 
+    // приёмник логов выводит сообщения в stdout с цветной подсветкой (_mt - потокобезопасная
+    // версия)
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console_sink->set_level(level);
 

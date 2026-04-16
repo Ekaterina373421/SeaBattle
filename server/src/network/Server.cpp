@@ -1,5 +1,8 @@
 #include "Server.hpp"
 
+#include <functional>
+#include <memory>
+
 #include "Session.hpp"
 #include "SessionManager.hpp"
 #include "game/GameManager.hpp"
@@ -96,6 +99,9 @@ void Server::doAccept() {
 }
 
 void Server::onSessionError(std::shared_ptr<Session> session, const boost::system::error_code& ec) {
+    // End-of-file — клиент закрыл соединение корректно
+    // Клиент разорвал соединение (RST packet)
+    // Операция отменена (сервер остановлен)
     if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset ||
         ec == boost::asio::error::operation_aborted) {
         Logger::debug("Сессия #{} отключена", session->getId());
@@ -114,6 +120,9 @@ void Server::onPlayerDisconnect(const std::string& playerGuid) {
     auto game = game_manager_->getGameByPlayer(playerGuid);
     if (game && !game->isFinished()) {
         game->handleDisconnect(playerGuid);
+        if (game_over_callback_) {
+            game_over_callback_(game);
+        }
     }
 
     player_manager_->setPlayerOffline(playerGuid);

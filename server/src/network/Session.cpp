@@ -1,5 +1,11 @@
 #include "Session.hpp"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <arpa/inet.h>
+#endif
 #include <cstring>
 
 #include "player/Player.hpp"
@@ -31,10 +37,9 @@ void Session::doReadHeader() {
                 return;
             }
 
-            uint32_t bodyLength = (static_cast<uint32_t>(read_buffer_[0]) << 24) |
-                                  (static_cast<uint32_t>(read_buffer_[1]) << 16) |
-                                  (static_cast<uint32_t>(read_buffer_[2]) << 8) |
-                                  static_cast<uint32_t>(read_buffer_[3]);
+            uint32_t netLength;
+            std::memcpy(&netLength, read_buffer_.data(), sizeof(netLength));
+            uint32_t bodyLength = ntohl(netLength);
 
             if (bodyLength > protocol::MAX_MESSAGE_SIZE) {
                 handleError(boost::asio::error::message_size);

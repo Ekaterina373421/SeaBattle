@@ -1,5 +1,11 @@
 #include "MessageParser.hpp"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <arpa/inet.h>
+#endif
 #include <cstring>
 #include <set>
 
@@ -150,14 +156,11 @@ bool MessageParser::isValidAction(const std::string& action) {
 
 std::vector<uint8_t> MessageParser::packMessage(const std::string& jsonStr) {
     uint32_t length = static_cast<uint32_t>(jsonStr.size());
+    uint32_t netLength = htonl(length);
 
     std::vector<uint8_t> result(protocol::LENGTH_HEADER_SIZE + length);
 
-    result[0] = static_cast<uint8_t>((length >> 24) & 0xFF);
-    result[1] = static_cast<uint8_t>((length >> 16) & 0xFF);
-    result[2] = static_cast<uint8_t>((length >> 8) & 0xFF);
-    result[3] = static_cast<uint8_t>(length & 0xFF);
-
+    std::memcpy(result.data(), &netLength, sizeof(netLength));
     std::memcpy(result.data() + protocol::LENGTH_HEADER_SIZE, jsonStr.data(), length);
 
     return result;
@@ -171,9 +174,9 @@ std::optional<std::string> MessageParser::unpackMessage(const std::vector<uint8_
         return std::nullopt;
     }
 
-    uint32_t length = (static_cast<uint32_t>(data[0]) << 24) |
-                      (static_cast<uint32_t>(data[1]) << 16) |
-                      (static_cast<uint32_t>(data[2]) << 8) | static_cast<uint32_t>(data[3]);
+    uint32_t netLength;
+    std::memcpy(&netLength, data.data(), sizeof(netLength));
+    uint32_t length = ntohl(netLength);
 
     if (length > protocol::MAX_MESSAGE_SIZE) {
         return std::nullopt;

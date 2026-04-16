@@ -35,6 +35,10 @@ target_link_libraries(seabattle_server_lib PUBLIC
     Threads::Threads
 )
 
+if(WIN32)
+    target_link_libraries(seabattle_server_lib PUBLIC ws2_32)
+endif()
+
 add_executable(seabattle_server src/main.cpp)
 
 target_link_libraries(seabattle_server PRIVATE

@@ -15,7 +15,9 @@
 
 namespace seabattle {
 
-MessageHandler::MessageHandler(Server& server) : server_(server) {}
+MessageHandler::MessageHandler(Server& server) : server_(server) {
+    server_.setGameOverCallback([this](std::shared_ptr<Game> g) { this->notifyGameOver(g); });
+}
 
 void MessageHandler::handleMessage(std::shared_ptr<Session> session,
                                    const std::string& rawMessage) {
@@ -81,11 +83,18 @@ void MessageHandler::handleMessage(std::shared_ptr<Session> session,
     }
 }
 
+// MessageHandler.cpp, метод handleAuth целиком
 void MessageHandler::handleAuth(std::shared_ptr<Session> session, const nlohmann::json& payload) {
+    if (session->getPlayer()) {
+        session->send(MessageBuilder::buildAuthError(protocol::error_code::INVALID_NICKNAME,
+                                                     "Уже авторизован"));
+        return;
+    }
+
     auto nickname = MessageParser::extractString(payload, "nickname");
     auto existingGuid = MessageParser::extractString(payload, "guid");
 
-    if (!nickname.has_value()) {
+    if (!nickname.has_value() || nickname->empty()) {
         session->send(MessageBuilder::buildAuthError(protocol::error_code::INVALID_NICKNAME,
                                                      "Никнейм не указан"));
         return;
@@ -98,20 +107,42 @@ void MessageHandler::handleAuth(std::shared_ptr<Session> session, const nlohmann
         return;
     }
 
+    // --- Новая логика ---
     std::shared_ptr<Player> player;
 
+    // Сначала пытаемся обработать реконнект по GUID
     if (existingGuid.has_value() && !existingGuid->empty()) {
         player = server_.getPlayerManager()->getPlayer(*existingGuid);
-        if (player) {
-            Logger::info("Повторное подключение игрока {} ({})", *nickname, *existingGuid);
+        if (player && player->getNickname() != *nickname) {
+            // Если ник при реконнектекте изменился, обновляем его
             player->setNickname(*nickname);
         }
     }
 
     if (!player) {
-        player = server_.getPlayerManager()->createPlayer(*nickname);
-        Logger::info("Новый игрок {} ({})", player->getNickname(), player->getGuid());
+        bool wasCreated = false;
+        player = server_.getPlayerManager()->findOrCreatePlayer(*nickname, wasCreated);
+
+        if (!wasCreated && player->isOnline()) {
+            // Игрок с таким ником уже существует и онлайн. Это не реконнект. Ошибка.
+            session->send(MessageBuilder::buildAuthError(protocol::error_code::INVALID_NICKNAME,
+                                                         "Никнейм уже занят"));
+            return;
+        }
+        if (wasCreated) {
+            Logger::info("Новый игрок {} ({})", player->getNickname(), player->getGuid());
+        }
     }
+
+    // Если мы здесь, игрок либо новый, либо оффлайн, либо это реконнект
+    if (player->isOnline() && player->getSession().lock() != session) {
+        // Кто-то пытается зайти под активным аккаунтом. Отклоняем.
+        session->send(MessageBuilder::buildAuthError(protocol::error_code::INVALID_NICKNAME,
+                                                     "Аккаунт уже используется"));
+        return;
+    }
+
+    Logger::info("Игрок {} ({}) авторизован", player->getNickname(), player->getGuid());
 
     session->setPlayer(player);
     player->setSession(session);
@@ -134,7 +165,10 @@ void MessageHandler::handleGetPlayers(std::shared_ptr<Session> session) {
 void MessageHandler::handleAddFriend(std::shared_ptr<Session> session,
                                      const nlohmann::json& payload) {
     auto player = session->getPlayer();
-    auto friendGuid = MessageParser::extractString(payload, "friend_guid");
+    auto friendGuid = MessageParser::extractString(payload, "guid");
+    if (!friendGuid.has_value() || friendGuid->empty()) {
+        friendGuid = MessageParser::extractString(payload, "friend_guid");
+    }
 
     if (!friendGuid.has_value() || friendGuid->empty()) {
         sendError(session, protocol::error_code::PLAYER_NOT_FOUND);
@@ -194,7 +228,10 @@ void MessageHandler::handleGetFriends(std::shared_ptr<Session> session) {
 
 void MessageHandler::handleGetStats(std::shared_ptr<Session> session,
                                     const nlohmann::json& payload) {
-    auto playerGuid = MessageParser::extractString(payload, "player_guid");
+    auto playerGuid = MessageParser::extractString(payload, "guid");
+    if (!playerGuid.has_value() || playerGuid->empty()) {
+        playerGuid = MessageParser::extractString(payload, "player_guid");
+    }
 
     std::shared_ptr<Player> targetPlayer;
     if (playerGuid.has_value() && !playerGuid->empty()) {
@@ -232,12 +269,15 @@ void MessageHandler::handleCancelSearch(std::shared_ptr<Session> session) {
     auto player = session->getPlayer();
     server_.getLobby()->removeFromQueue(player->getGuid());
     Logger::debug("Игрок {} отменил поиск игры", player->getNickname());
-    session->send(MessageBuilder::buildFindGameResponse(false, server_.getLobby()->getQueueSize()));
+    session->send(MessageBuilder::buildSuccess(protocol::action::CANCEL_SEARCH));
 }
 
 void MessageHandler::handleInvite(std::shared_ptr<Session> session, const nlohmann::json& payload) {
     auto player = session->getPlayer();
-    auto targetGuid = MessageParser::extractString(payload, "target_guid");
+    auto targetGuid = MessageParser::extractString(payload, "guid");
+    if (!targetGuid.has_value() || targetGuid->empty()) {
+        targetGuid = MessageParser::extractString(payload, "target_guid");
+    }
 
     if (!targetGuid.has_value() || targetGuid->empty()) {
         sendError(session, protocol::error_code::PLAYER_NOT_FOUND);
@@ -280,7 +320,10 @@ void MessageHandler::handleInviteResponse(std::shared_ptr<Session> session,
                                           const nlohmann::json& payload) {
     auto player = session->getPlayer();
     auto inviteId = MessageParser::extractString(payload, "invite_id");
-    auto accepted = MessageParser::extractBool(payload, "accepted");
+    auto accepted = MessageParser::extractBool(payload, "accept");
+    if (!accepted.has_value()) {
+        accepted = MessageParser::extractBool(payload, "accepted");
+    }
 
     if (!inviteId.has_value() || !accepted.has_value()) {
         sendError(session, protocol::error_code::INVITE_NOT_FOUND);

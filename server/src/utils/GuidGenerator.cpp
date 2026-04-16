@@ -10,7 +10,8 @@ namespace seabattle {
 std::string GuidGenerator::generate() {
     static std::random_device rd;
     static std::mt19937_64 gen(rd());
-    static std::uniform_int_distribution<uint64_t> dis;
+    static std::uniform_int_distribution<uint64_t>
+        dis;  // равномерное распределение по всему диапазону uint64_t
 
     uint64_t part1 = dis(gen);
     uint64_t part2 = dis(gen);

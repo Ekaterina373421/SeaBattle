@@ -10,7 +10,8 @@ namespace seabattle {
 class Logger {
    public:
     static void init(const std::string& name = "seabattle",
-                     spdlog::level::level_enum level = spdlog::level::info);
+                     spdlog::level::level_enum level =
+                         spdlog::level::info);  // уровни ниже info (debug, trace) не выводятся
 
     static void setLevel(spdlog::level::level_enum level);
 

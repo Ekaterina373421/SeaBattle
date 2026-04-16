@@ -13,6 +13,7 @@
 #endif
 
 namespace {
+// потокобезопасный флаг остановки (гпрпнтирует атомарность и видимость)
 std::atomic<bool> g_running{true};
 seabattle::Server* g_server = nullptr;
 }  // namespace
@@ -20,8 +21,10 @@ seabattle::Server* g_server = nullptr;
 #ifdef _WIN32
 BOOL WINAPI consoleHandler(DWORD signal) {
     if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT) {
+        // сообщаем главному циклу, что пора выходить
         g_running = false;
         if (g_server) {
+            // останавливаем io_context сервера, чтобы все асинхронные операции завершились
             g_server->stop();
         }
         return TRUE;
@@ -31,8 +34,10 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 #else
 void signalHandler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
+        // сообщаем главному циклу, что пора выходить
         g_running = false;
         if (g_server) {
+            // останавливаем io_context сервера, чтобы все асинхронные операции завершились
             g_server->stop();
         }
     }
@@ -122,9 +127,12 @@ bool parseArgs(int argc, char* argv[], ServerConfig& config) {
 
 int main(int argc, char* argv[]) {
 #ifdef _WIN32
+    // регистрирует callback для консольных событий
     SetConsoleCtrlHandler(consoleHandler, TRUE);
+    // включает UTF-8 в консоли Windows (для кириллицы)
     SetConsoleOutputCP(CP_UTF8);
 #else
+    // стандартная функция POSIX для обработки сигналов
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 #endif

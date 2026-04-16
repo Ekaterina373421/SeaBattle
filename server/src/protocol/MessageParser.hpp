@@ -2,6 +2,7 @@
 
 #include <Protocol.hpp>
 #include <Types.hpp>
+#include <cstring>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>

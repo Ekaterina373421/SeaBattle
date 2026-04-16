@@ -17,6 +17,7 @@ class PlayerManager {
     std::shared_ptr<Player> createPlayer(const std::string& nickname);
     std::shared_ptr<Player> getPlayer(const std::string& guid);
     std::shared_ptr<Player> getPlayerByNickname(const std::string& nickname);
+    std::shared_ptr<Player> findOrCreatePlayer(const std::string& nickname, bool& wasCreated);
 
     bool playerExists(const std::string& guid) const;
 

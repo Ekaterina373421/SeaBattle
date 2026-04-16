@@ -12,6 +12,12 @@ set(TEST_SOURCES
     protocol/MessageParserTest.cpp
     protocol/MessageBuilderTest.cpp
     integration/IntegrationTest.cpp
+    network/SessionTest.cpp
+    network/SessionManagerTest.cpp
+    network/ServerTest.cpp
+    network/MessageHandlerTest.cpp
+    network/ProtocolEndianTest.cpp
+    concurrency/ThreadSafetyTest.cpp
 )
 
 add_executable(seabattle_server_tests ${TEST_SOURCES})

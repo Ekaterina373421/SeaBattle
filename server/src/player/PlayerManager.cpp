@@ -5,15 +5,17 @@
 namespace seabattle {
 
 std::shared_ptr<Player> PlayerManager::createPlayer(const std::string& nickname) {
-    std::string guid = GuidGenerator::generate();
+    std::unique_lock<std::shared_mutex> lock(mutex_);
 
-    auto player = std::make_shared<Player>(guid, nickname);
-
-    {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
-        players_[guid] = player;
+    for (const auto& pair : players_) {
+        if (pair.second->getNickname() == nickname && pair.second->isOnline()) {
+            return nullptr;
+        }
     }
 
+    std::string guid = GuidGenerator::generate();
+    auto player = std::make_shared<Player>(guid, nickname);
+    players_[guid] = player;
     return player;
 }
 
@@ -36,13 +38,31 @@ std::shared_ptr<Player> PlayerManager::getPlayerByNickname(const std::string& ni
     return nullptr;
 }
 
+std::shared_ptr<Player> PlayerManager::findOrCreatePlayer(const std::string& nickname,
+                                                          bool& wasCreated) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+
+    for (const auto& pair : players_) {
+        if (pair.second->getNickname() == nickname) {
+            wasCreated = false;
+            return pair.second;
+        }
+    }
+
+    wasCreated = true;
+    std::string guid = GuidGenerator::generate();
+    auto player = std::make_shared<Player>(guid, nickname);
+    players_[guid] = player;
+    return player;
+}
+
 bool PlayerManager::playerExists(const std::string& guid) const {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     return players_.count(guid) > 0;
 }
 
 bool PlayerManager::setPlayerOnline(const std::string& guid, std::shared_ptr<Session> session) {
-    std::shared_lock<std::shared_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     auto it = players_.find(guid);
     if (it == players_.end()) {
         return false;
@@ -54,7 +74,7 @@ bool PlayerManager::setPlayerOnline(const std::string& guid, std::shared_ptr<Ses
 }
 
 void PlayerManager::setPlayerOffline(const std::string& guid) {
-    std::shared_lock<std::shared_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     auto it = players_.find(guid);
     if (it != players_.end()) {
         it->second->setSession(nullptr);

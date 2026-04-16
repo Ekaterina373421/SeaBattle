@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <boost/asio.hpp>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -14,6 +15,7 @@ class SessionManager;
 class PlayerManager;
 class GameManager;
 class Lobby;
+class Game;
 
 class Server {
    public:
@@ -26,6 +28,10 @@ class Server {
     void stop();
 
     void setMessageHandler(MessageHandler handler);
+
+    void setGameOverCallback(std::function<void(std::shared_ptr<Game>)> callback) {
+        game_over_callback_ = std::move(callback);
+    }
 
     std::shared_ptr<SessionManager> getSessionManager() {
         return session_manager_;
@@ -73,6 +79,7 @@ class Server {
     std::shared_ptr<Lobby> lobby_;
 
     MessageHandler message_handler_;
+    std::function<void(std::shared_ptr<Game>)> game_over_callback_;
 };
 
 }  // namespace seabattle
